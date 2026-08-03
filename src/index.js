@@ -66,7 +66,7 @@ client.on(Events.MessageCreate, async (message) => {
       const bare = message.content.trim();
       if (
         /^(ヘルプ|help|総額|未集金|一覧|履歴|取消|リセット|リセット確認)$/i.test(bare) ||
-        /^(入金|出金|登録|目標|削除)\+.+/.test(bare)
+        /^(入金|出金|登録|目標|削除)(\s+|\+).+/.test(bare)
       ) {
         rawCommands = [bare];
       }

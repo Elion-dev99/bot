@@ -8,19 +8,20 @@ import { parseAmount } from "./parser.js";
 import { yen, memberStatusLine, historyLine } from "./format.js";
 
 const HELP_TEXT = `📋 **集金Bot コマンド一覧**
+半角スペース区切りで送ってください。
 
 **基本**
-\`入金+名前+金額\` … 入金を記録
-\`出金+名前+金額\` … 出金・減額を記録
+\`入金 名前 金額\` … 入金を記録
+\`出金 名前 金額\` … 出金・減額を記録
 \`総額\` … 集金済みの合計を表示
 \`未集金\` … 未集金の人と金額・未入金総額を表示
 
 **名簿**
-\`登録+名前+目標金額\` … 人を登録・目標金額つき
-\`登録+名前\` … デフォルト目標で登録
-\`目標+金額\` … 新規登録時のデフォルト目標を設定
-\`目標+名前+金額\` … 個人の目標金額を変更
-\`削除+名前\` … 名簿から削除
+\`登録 名前 目標金額\` … 人を登録・目標金額つき
+\`登録 名前\` … デフォルト目標で登録
+\`目標 金額\` … 新規登録時のデフォルト目標を設定
+\`目標 名前 金額\` … 個人の目標金額を変更
+\`削除 名前\` … 名簿から削除
 \`一覧\` … 全員の入金状況
 
 **その他**
@@ -29,7 +30,7 @@ const HELP_TEXT = `📋 **集金Bot コマンド一覧**
 \`リセット確認\` … このチャンネルの集金データを全消去
 \`ヘルプ\` … このヘルプを表示
 
-例: \`ヘルプ\` / \`総額\` / \`入金+太郎+1000\`
+例: \`ヘルプ\` / \`総額\` / \`入金 太郎 1000\`
 ※ データはチャンネルごとに独立して保存されます。`;
 
 function memberNames(state) {
@@ -59,7 +60,7 @@ function unpaidList(state) {
 
 function requireNameAmount(args) {
   if (args.length < 2) {
-    return { error: "形式: `入金+名前+金額` / `出金+名前+金額`" };
+    return { error: "形式: `入金 名前 金額` / `出金 名前 金額`" };
   }
   const name = args[0];
   const amount = parseAmount(args[1]);
@@ -113,7 +114,7 @@ export function handleCommand(channelId, { action, args }) {
       if (parsed.error) return parsed.error;
       const { name, amount } = parsed;
       if (!state.members[name]) {
-        return `⚠️ \`${name}\` は名簿にいません。先に \`登録+${name}+目標金額\` するか、入金してください。`;
+        return `⚠️ \`${name}\` は名簿にいません。先に \`登録 ${name} 目標金額\` するか、入金してください。`;
       }
       const member = state.members[name];
       if ((member.paid || 0) < amount) {
@@ -134,7 +135,7 @@ export function handleCommand(channelId, { action, args }) {
       const total = totalCollected(state);
       const names = memberNames(state);
       if (names.length === 0) {
-        return "📭 まだ名簿がありません。`登録+名前+目標金額` で登録してください。";
+        return "📭 まだ名簿がありません。`登録 名前 目標金額` で登録してください。";
       }
       const lines = names.map((name) => {
         const m = state.members[name];
@@ -146,7 +147,7 @@ export function handleCommand(channelId, { action, args }) {
     case "未集金": {
       const names = memberNames(state);
       if (names.length === 0) {
-        return "📭 まだ名簿がありません。`登録+名前+目標金額` で登録してください。";
+        return "📭 まだ名簿がありません。`登録 名前 目標金額` で登録してください。";
       }
       const { rows, unpaidTotal } = unpaidList(state);
       if (rows.length === 0) {
@@ -161,7 +162,7 @@ export function handleCommand(channelId, { action, args }) {
 
     case "登録": {
       if (args.length < 1) {
-        return "形式: `登録+名前+目標金額` または `登録+名前`";
+        return "形式: `登録 名前 目標金額` または `登録 名前`";
       }
       const name = args[0];
       let target = state.defaultTarget;
@@ -189,7 +190,7 @@ export function handleCommand(channelId, { action, args }) {
         state.defaultTarget = amount;
         addHistory(state, { type: "set_target", target: amount });
         saveChannel(channelId, state);
-        return `🎯 デフォルト目標を ${yen(amount)} に設定しました。\n以降の \`登録+名前\` に適用されます。`;
+        return `🎯 デフォルト目標を ${yen(amount)} に設定しました。\n以降の \`登録 名前\` に適用されます。`;
       }
       if (args.length >= 2) {
         const name = args[0];
@@ -201,11 +202,11 @@ export function handleCommand(channelId, { action, args }) {
         saveChannel(channelId, state);
         return `🎯 \`${name}\` の目標を ${yen(amount)} に設定しました。\n入金 ${yen(member.paid || 0)} / 目標 ${yen(amount)}`;
       }
-      return "形式: `目標+金額` または `目標+名前+金額`";
+      return "形式: `目標 金額` または `目標 名前 金額`";
     }
 
     case "削除": {
-      if (args.length < 1) return "形式: `削除+名前`";
+      if (args.length < 1) return "形式: `削除 名前`";
       const name = args[0];
       if (!state.members[name]) {
         return `⚠️ \`${name}\` は名簿にいません。`;
@@ -225,7 +226,7 @@ export function handleCommand(channelId, { action, args }) {
     case "一覧": {
       const names = memberNames(state);
       if (names.length === 0) {
-        return "📭 まだ名簿がありません。`登録+名前+目標金額` で登録してください。";
+        return "📭 まだ名簿がありません。`登録 名前 目標金額` で登録してください。";
       }
       const { unpaidTotal } = unpaidList(state);
       const lines = names.map((name) =>

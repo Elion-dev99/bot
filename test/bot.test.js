@@ -15,15 +15,23 @@ function reset() {
 describe("parser", () => {
   it("括弧コマンドを抽出する", () => {
     assert.deepEqual(extractCommands("(総額)"), ["総額"]);
-    assert.deepEqual(extractCommands("（入金+太郎+1000）"), ["入金+太郎+1000"]);
+    assert.deepEqual(extractCommands("（入金 太郎 1000）"), ["入金 太郎 1000"]);
     assert.deepEqual(extractCommands("確認 (一覧) と (未集金)"), ["一覧", "未集金"]);
   });
 
-  it("コマンドを分解する", () => {
-    assert.deepEqual(parseCommand("入金+太郎+1,000"), {
+  it("コマンドを半角スペースで分解する", () => {
+    assert.deepEqual(parseCommand("入金 太郎 1,000"), {
       action: "入金",
       args: ["太郎", "1,000"],
-      raw: "入金+太郎+1,000",
+      raw: "入金 太郎 1,000",
+    });
+  });
+
+  it("旧形式の+区切りも分解できる", () => {
+    assert.deepEqual(parseCommand("入金+太郎+1000"), {
+      action: "入金",
+      args: ["太郎", "1000"],
+      raw: "入金+太郎+1000",
     });
   });
 

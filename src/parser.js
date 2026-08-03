@@ -1,6 +1,6 @@
 /**
- * 括弧で囲まれたコマンドを抽出・解析する
- * 例: (入金+太郎+1000) / （総額） / (登録 + 花子 + 3000)
+ * コマンドを抽出・解析する
+ * 例: 入金 太郎 1000 / (総額) / 登録 花子 3000
  */
 
 const COMMAND_RE = /[（(]\s*([^）)]+?)\s*[）)]/g;
@@ -15,8 +15,10 @@ export function extractCommands(content) {
 }
 
 export function parseCommand(raw) {
-  const parts = raw
-    .split("+")
+  // 半角スペース区切りを主とし、旧形式の + も受け付ける
+  const parts = String(raw)
+    .trim()
+    .split(/[+\s]+/)
     .map((p) => p.trim())
     .filter(Boolean);
 
