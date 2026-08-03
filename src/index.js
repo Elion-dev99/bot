@@ -47,8 +47,30 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
+    console.log(
+      `[msg] guild=${message.guildId} channel=${message.channelId} author=${message.author.tag} content=${JSON.stringify(message.content)}`
+    );
+
+    // Message Content Intent が効いていないと content が空になる
+    if (!message.content) {
+      console.warn(
+        "[warn] message.content が空です。Developer Portal で MESSAGE CONTENT INTENT を ON にしたあと Bot を再起動してください。"
+      );
+      return;
+    }
+
     const rawCommands = extractCommands(message.content);
-    if (rawCommands.length === 0) return;
+    if (rawCommands.length === 0) {
+      // 括弧なしで送られたときのヒント
+      if (/^(ヘルプ|help|総額|未集金|一覧)$/i.test(message.content.trim()) ||
+          /^(入金|出金|登録)\+/.test(message.content.trim())) {
+        await message.reply({
+          content: "📌 コマンドは括弧で囲んでください。例: `(ヘルプ)` `(総額)` `(入金+太郎+1000)`",
+          allowedMentions: { repliedUser: false },
+        });
+      }
+      return;
+    }
 
     const replies = [];
     for (const raw of rawCommands) {
