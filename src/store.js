@@ -16,8 +16,30 @@ function filePath(channelId) {
 function defaultState() {
   return {
     defaultTarget: 0,
+    collectors: {},
     members: {},
     history: [],
+  };
+}
+
+function normalizeMember(member, defaultTarget = 0) {
+  const byCollector =
+    member.byCollector && typeof member.byCollector === "object"
+      ? member.byCollector
+      : {};
+  const paidFromCollectors = Object.values(byCollector).reduce(
+    (sum, n) => sum + (Number(n) || 0),
+    0
+  );
+  // byCollector がある場合はそれを正とし、無い場合は従来の paid を維持
+  const paid =
+    Object.keys(byCollector).length > 0
+      ? paidFromCollectors
+      : Number(member.paid) || 0;
+  return {
+    target: Number(member.target) || defaultTarget || 0,
+    paid,
+    byCollector,
   };
 }
 
@@ -29,9 +51,19 @@ export function loadChannel(channelId) {
   }
   try {
     const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+    const defaultTarget = Number(raw.defaultTarget) || 0;
+    const members = {};
+    if (raw.members && typeof raw.members === "object") {
+      for (const [name, member] of Object.entries(raw.members)) {
+        members[name] = normalizeMember(member, defaultTarget);
+      }
+    }
+    const collectors =
+      raw.collectors && typeof raw.collectors === "object" ? raw.collectors : {};
     return {
-      defaultTarget: Number(raw.defaultTarget) || 0,
-      members: raw.members && typeof raw.members === "object" ? raw.members : {},
+      defaultTarget,
+      collectors,
+      members,
       history: Array.isArray(raw.history) ? raw.history : [],
     };
   } catch {
@@ -49,9 +81,27 @@ export function getOrCreateMember(state, name) {
     state.members[name] = {
       target: state.defaultTarget,
       paid: 0,
+      byCollector: {},
     };
   }
+  if (!state.members[name].byCollector) {
+    state.members[name].byCollector = {};
+  }
   return state.members[name];
+}
+
+export function ensureCollector(state, collector) {
+  if (!state.collectors) state.collectors = {};
+  if (!state.collectors[collector]) {
+    state.collectors[collector] = { balance: 0 };
+  }
+  return state.collectors[collector];
+}
+
+export function syncMemberPaid(member) {
+  const by = member.byCollector || {};
+  member.paid = Object.values(by).reduce((sum, n) => sum + (Number(n) || 0), 0);
+  return member.paid;
 }
 
 export function addHistory(state, entry) {

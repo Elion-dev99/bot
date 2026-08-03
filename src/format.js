@@ -17,11 +17,12 @@ export function historyLine(entry) {
   const time = entry.at
     ? new Date(entry.at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
     : "";
+  const who = entry.collector ? `[${entry.collector}] ` : "";
   switch (entry.type) {
     case "deposit":
-      return `・[${time}] 入金 ${entry.name} ${yen(entry.amount)}`;
+      return `・[${time}] ${who}入金 ${entry.name} ${yen(entry.amount)}`;
     case "withdraw":
-      return `・[${time}] 出金 ${entry.name} ${yen(entry.amount)}`;
+      return `・[${time}] ${who}出金 ${entry.name} ${yen(entry.amount)}`;
     case "register":
       return `・[${time}] 登録 ${entry.name} 目標 ${yen(entry.target)}`;
     case "remove":
@@ -29,7 +30,7 @@ export function historyLine(entry) {
     case "set_target":
       return `・[${time}] 目標変更 ${entry.name ?? "全体デフォルト"} ${yen(entry.target)}`;
     case "undo":
-      return `・[${time}] 取消 ${entry.undoneType}`;
+      return `・[${time}] ${who}取消 ${entry.undoneType}`;
     case "reset":
       return `・[${time}] リセット`;
     default:

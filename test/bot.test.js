@@ -2,7 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { extractCommands, extractBareCommands, parseCommand, parseAmount } from "../src/parser.js";
+import {
+  extractCommands,
+  extractBareCommands,
+  parseCommand,
+  parseAmount,
+} from "../src/parser.js";
 import { handleCommand } from "../src/commands.js";
 
 const TEST_CHANNEL = "test-channel-unit";
@@ -15,35 +20,31 @@ function reset() {
 describe("parser", () => {
   it("括弧コマンドを抽出する", () => {
     assert.deepEqual(extractCommands("(総額)"), ["総額"]);
-    assert.deepEqual(extractCommands("（入金 太郎 1000）"), ["入金 太郎 1000"]);
-    assert.deepEqual(extractCommands("確認 (一覧) と (未集金)"), ["一覧", "未集金"]);
+    assert.deepEqual(extractCommands("（つむぎ 入金 太郎 1000）"), [
+      "つむぎ 入金 太郎 1000",
+    ]);
   });
 
-  it("コマンドを半角スペースで分解する", () => {
-    assert.deepEqual(parseCommand("入金 太郎 1,000"), {
+  it("入力者つきコマンドを分解する", () => {
+    assert.deepEqual(parseCommand("つむぎ 入金 太郎 1,000"), {
+      collector: "つむぎ",
       action: "入金",
       args: ["太郎", "1,000"],
-      raw: "入金 太郎 1,000",
+      raw: "つむぎ 入金 太郎 1,000",
     });
-  });
-
-  it("旧形式の+区切りも分解できる", () => {
-    assert.deepEqual(parseCommand("入金+太郎+1000"), {
-      action: "入金",
-      args: ["太郎", "1000"],
-      raw: "入金+太郎+1000",
+    assert.deepEqual(parseCommand("登録 太郎 3000"), {
+      collector: null,
+      action: "登録",
+      args: ["太郎", "3000"],
+      raw: "登録 太郎 3000",
     });
   });
 
   it("改行の連続コマンドを抽出する", () => {
     assert.deepEqual(
-      extractBareCommands("登録 太郎 3000\n登録 花子 3000\n総額"),
-      ["登録 太郎 3000", "登録 花子 3000", "総額"]
+      extractBareCommands("つむぎ 入金 太郎 3000\nれんた 入金 花子 3000"),
+      ["つむぎ 入金 太郎 3000", "れんた 入金 花子 3000"]
     );
-    // 無効行はスキップして有効行だけ返す
-    assert.deepEqual(extractBareCommands("雑談\n登録 太郎 3000"), [
-      "登録 太郎 3000",
-    ]);
   });
 
   it("金額をパースする", () => {
@@ -54,49 +55,109 @@ describe("parser", () => {
 });
 
 describe("commands", () => {
-  it("登録・入金・総額・未集金の一連の流れ", () => {
+  it("入力者別金庫で入金・総額・未集金できる", () => {
     reset();
-    assert.match(handleCommand(TEST_CHANNEL, { action: "登録", args: ["太郎", "3000"] }), /登録 太郎/);
-    assert.match(handleCommand(TEST_CHANNEL, { action: "登録", args: ["花子", "3000"] }), /登録 花子/);
-    assert.match(handleCommand(TEST_CHANNEL, { action: "入金", args: ["太郎", "3000"] }), /入金 太郎/);
-    assert.match(handleCommand(TEST_CHANNEL, { action: "入金", args: ["花子", "1000"] }), /入金 花子/);
+    assert.match(
+      handleCommand(TEST_CHANNEL, { action: "入力者", args: ["つむぎ"] }),
+      /つむぎ/
+    );
+    assert.match(
+      handleCommand(TEST_CHANNEL, { action: "入力者", args: ["れんた"] }),
+      /れんた/
+    );
+    handleCommand(TEST_CHANNEL, {
+      action: "登録",
+      args: ["太郎", "3000"],
+      collector: null,
+    });
+    handleCommand(TEST_CHANNEL, {
+      action: "登録",
+      args: ["花子", "3000"],
+      collector: null,
+    });
 
-    const total = handleCommand(TEST_CHANNEL, { action: "総額", args: [] });
+    assert.match(
+      handleCommand(TEST_CHANNEL, {
+        action: "入金",
+        args: ["太郎", "3000"],
+        collector: "つむぎ",
+      }),
+      /\[つむぎ\]/
+    );
+    assert.match(
+      handleCommand(TEST_CHANNEL, {
+        action: "入金",
+        args: ["花子", "1000"],
+        collector: "れんた",
+      }),
+      /\[れんた\]/
+    );
+
+    const total = handleCommand(TEST_CHANNEL, {
+      action: "総額",
+      args: [],
+      collector: null,
+    });
     assert.match(total, /4,000円/);
+    assert.match(total, /つむぎ 金庫: 3,000円/);
+    assert.match(total, /れんた 金庫: 1,000円/);
 
-    const unpaid = handleCommand(TEST_CHANNEL, { action: "未集金", args: [] });
+    const tsumugi = handleCommand(TEST_CHANNEL, {
+      action: "総額",
+      args: [],
+      collector: "つむぎ",
+    });
+    assert.match(tsumugi, /\[つむぎ\] 金庫: 3,000円/);
+
+    const unpaid = handleCommand(TEST_CHANNEL, {
+      action: "未集金",
+      args: [],
+      collector: null,
+    });
     assert.match(unpaid, /花子/);
     assert.match(unpaid, /2,000円/);
     assert.doesNotMatch(unpaid, /太郎/);
   });
 
-  it("出金と取消ができる", () => {
+  it("入力者なしの入金は拒否する", () => {
     reset();
-    handleCommand(TEST_CHANNEL, { action: "登録", args: ["次郎", "5000"] });
-    handleCommand(TEST_CHANNEL, { action: "入金", args: ["次郎", "2000"] });
-    assert.match(handleCommand(TEST_CHANNEL, { action: "出金", args: ["次郎", "500"] }), /出金 次郎/);
-    const list = handleCommand(TEST_CHANNEL, { action: "一覧", args: [] });
-    assert.match(list, /1,500円/);
-
-    assert.match(handleCommand(TEST_CHANNEL, { action: "取消", args: [] }), /取消完了/);
-    const afterUndo = handleCommand(TEST_CHANNEL, { action: "一覧", args: [] });
-    assert.match(afterUndo, /2,000円/);
+    const res = handleCommand(TEST_CHANNEL, {
+      action: "入金",
+      args: ["太郎", "1000"],
+      collector: null,
+    });
+    assert.match(res, /入力者をつけてください/);
   });
 
-  it("リセット確認で消える", () => {
+  it("出金は同じ入力者の分だけ減らせる", () => {
     reset();
-    handleCommand(TEST_CHANNEL, { action: "登録", args: ["三郎", "1000"] });
+    handleCommand(TEST_CHANNEL, { action: "入力者", args: ["つむぎ"] });
+    handleCommand(TEST_CHANNEL, { action: "入力者", args: ["れんた"] });
+    handleCommand(TEST_CHANNEL, {
+      action: "登録",
+      args: ["次郎", "5000"],
+      collector: null,
+    });
+    handleCommand(TEST_CHANNEL, {
+      action: "入金",
+      args: ["次郎", "2000"],
+      collector: "つむぎ",
+    });
     assert.match(
-      handleCommand(TEST_CHANNEL, { action: "リセット", args: [] }),
-      /リセット確認/
+      handleCommand(TEST_CHANNEL, {
+        action: "出金",
+        args: ["次郎", "500"],
+        collector: "れんた",
+      }),
+      /出金できません/
     );
     assert.match(
-      handleCommand(TEST_CHANNEL, { action: "リセット確認", args: [] }),
-      /リセットしました/
-    );
-    assert.match(
-      handleCommand(TEST_CHANNEL, { action: "一覧", args: [] }),
-      /まだ名簿がありません/
+      handleCommand(TEST_CHANNEL, {
+        action: "出金",
+        args: ["次郎", "500"],
+        collector: "つむぎ",
+      }),
+      /出金 次郎/
     );
   });
 });

@@ -1,19 +1,48 @@
 /**
  * コマンドを抽出・解析する
- * 例: 入金 太郎 1000 / (総額) / 登録 花子 3000
- * 改行で複数コマンドも可
+ * 例:
+ *   つむぎ 入金 太郎 1000
+ *   れんた 総額
+ *   登録 花子 3000
  */
 
 const COMMAND_RE = /[（(]\s*([^）)]+?)\s*[）)]/g;
 
+export const ACTIONS = new Set([
+  "ヘルプ",
+  "help",
+  "Help",
+  "総額",
+  "未集金",
+  "一覧",
+  "履歴",
+  "取消",
+  "リセット",
+  "リセット確認",
+  "入金",
+  "出金",
+  "登録",
+  "目標",
+  "削除",
+  "入力者",
+]);
+
 const SINGLE_COMMAND_RE =
-  /^(ヘルプ|help|総額|未集金|一覧|履歴|取消|リセット|リセット確認)$/i;
-const ARGS_COMMAND_RE = /^(入金|出金|登録|目標|削除)(\s+|\+).+/;
+  /^(ヘルプ|help|総額|未集金|一覧|履歴|取消|リセット|リセット確認|入力者)$/i;
+const ARGS_COMMAND_RE =
+  /^(入金|出金|登録|目標|削除|入力者)(\s+|\+).+/i;
+// 入力者つき: つむぎ 入金 太郎 1000 / れんた 総額
+const COLLECTOR_COMMAND_RE =
+  /^(\S+)(\s+|\+)(入金|出金|総額|一覧|履歴|取消)((\s+|\+).+)?$/i;
 
 export function isCommandLine(line) {
   const bare = String(line).trim();
   if (!bare) return false;
-  return SINGLE_COMMAND_RE.test(bare) || ARGS_COMMAND_RE.test(bare);
+  return (
+    SINGLE_COMMAND_RE.test(bare) ||
+    ARGS_COMMAND_RE.test(bare) ||
+    COLLECTOR_COMMAND_RE.test(bare)
+  );
 }
 
 export function extractCommands(content) {
@@ -33,15 +62,10 @@ export function extractBareCommands(content) {
     .filter(Boolean);
 
   if (lines.length === 0) return [];
-
-  const commands = lines.filter(isCommandLine);
-  // 1行だけのときは従来どおり。複数行なら有効行だけ処理
-  if (lines.length === 1) return commands;
-  return commands;
+  return lines.filter(isCommandLine);
 }
 
 export function parseCommand(raw) {
-  // 半角スペース区切りを主とし、旧形式の + も受け付ける
   const parts = String(raw)
     .trim()
     .split(/[+\s]+/)
@@ -52,10 +76,35 @@ export function parseCommand(raw) {
     return null;
   }
 
-  const action = parts[0];
-  const args = parts.slice(1);
+  // 先頭がコマンド → 入力者なし
+  if (ACTIONS.has(parts[0]) || ACTIONS.has(parts[0].toLowerCase())) {
+    return {
+      collector: null,
+      action: parts[0],
+      args: parts.slice(1),
+      raw,
+    };
+  }
 
-  return { action, args, raw };
+  // 2語目がコマンド → 先頭が入力者
+  if (
+    parts.length >= 2 &&
+    (ACTIONS.has(parts[1]) || ACTIONS.has(parts[1].toLowerCase()))
+  ) {
+    return {
+      collector: parts[0],
+      action: parts[1],
+      args: parts.slice(2),
+      raw,
+    };
+  }
+
+  return {
+    collector: null,
+    action: parts[0],
+    args: parts.slice(1),
+    raw,
+  };
 }
 
 export function parseAmount(value) {
