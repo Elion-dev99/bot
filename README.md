@@ -27,12 +27,10 @@
 
 ### 1. Discord Developer Portal
 
-1. [Discord Developer Portal](https://discord.com/developers/applications) で Application を作成
-2. **Bot** タブで Bot を作成し、Token を控える
-3. **Privileged Gateway Intents** で **Message Content Intent** を ON
-4. OAuth2 → URL Generator で `bot` スコープと権限を選択  
-   - 最低限: `Send Messages` / `Read Message History` / `View Channels`
-5. 生成した URL でサーバーに招待
+1. [Discord Developer Portal](https://discord.com/developers/applications) で Application を開く
+2. 左メニュー **Bot** → **Reset Token**（または Add Bot）で **Token** を控える
+3. 同じ画面の **Privileged Gateway Intents** で **MESSAGE CONTENT INTENT** を ON → Save
+4. Application ID（Client ID）は `.env` の `DISCORD_CLIENT_ID` に入れる
 
 ### 2. このリポジトリ
 
@@ -41,6 +39,12 @@ npm install
 cp .env.example .env
 # .env の DISCORD_TOKEN にトークンを貼る
 npm start
+```
+
+招待リンクの表示:
+
+```bash
+npm run invite
 ```
 
 任意で `ALLOWED_CHANNEL_IDS` にチャンネル ID をカンマ区切り指定すると、そのチャンネルだけ反応します。
