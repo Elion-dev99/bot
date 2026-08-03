@@ -51,6 +51,33 @@ npm run invite
 
 任意で `ALLOWED_CHANNEL_IDS` にチャンネル ID をカンマ区切り指定すると、そのチャンネルだけ反応します。
 
+## Railway で常時起動（推奨）
+
+ローカルや Cloud Agent だと落ちやすいので、本番は [Railway](https://railway.app/) が手軽です。
+
+### 手順
+
+1. https://railway.app/ で GitHub ログイン
+2. **New Project** → **Deploy from GitHub repo** → このリポジトリを選択
+3. サービスを開き **Variables** に次を追加:
+   - `DISCORD_TOKEN` = Bot トークン
+   - `DISCORD_CLIENT_ID` = `1533753341639786607`
+   - `DATA_DIR` = `/data`
+4. **Settings → Volumes** で Volume を追加  
+   - Mount path: `/data`  
+   （再デプロイしても名簿・入金データが消えないようにする）
+5. Deploy 後、ログに `ログイン完了: 神谷M#7291` が出れば OK
+6. Discord で Bot がオンラインか確認し、`ヘルプ` を送信
+
+### いまのデータを引き継ぐ場合
+
+ローカルの `data/<チャンネルID>.json` を Railway Volume の `/data/` にコピーしてください。  
+Railway のシェル、または初回だけ一時的に内容を貼る方法でも可。
+
+### 料金メモ
+
+Hobby プランで Bot 1本なら十分動きます。スリープさせない設定になっているかダッシュボードで確認してください。
+
 ## 使い方の例
 
 ```text

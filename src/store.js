@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { emptyBills } from "./cash.js";
 
-const DATA_DIR = path.resolve("data");
+const DATA_DIR = path.resolve(process.env.DATA_DIR || "data");
 
 function ensureDir() {
   if (!fs.existsSync(DATA_DIR)) {

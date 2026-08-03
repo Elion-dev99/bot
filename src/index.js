@@ -5,6 +5,7 @@ import {
   Partials,
   Events,
 } from "discord.js";
+import { createServer } from "node:http";
 import { extractCommands, extractBareCommands, parseCommand } from "./parser.js";
 import { handleCommand } from "./commands.js";
 import { collectDueReminders } from "./remind.js";
@@ -33,11 +34,16 @@ const client = new Client({
 
 client.once(Events.ClientReady, (c) => {
   console.log(`ログイン完了: ${c.user.tag}`);
+  c.user.setPresence({
+    status: "online",
+    activities: [{ name: "集金記録 | ヘルプ", type: 3 }], // Watching
+  });
   if (allowedChannels.length > 0) {
     console.log(`許可チャンネル: ${allowedChannels.join(", ")}`);
   } else {
     console.log("許可チャンネル制限なし（全テキストチャンネルで反応）");
   }
+  console.log(`DATA_DIR=${process.env.DATA_DIR || "data"}`);
 
   // 1分ごとにリマインド判定（毎週指定曜・時）
   const tick = async () => {
@@ -167,3 +173,14 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 client.login(token);
+
+// Railway など PaaS 向け: PORT が来る場合はヘルスチェック用 HTTP を立てる
+if (process.env.PORT) {
+  const { createServer } = await import("node:http");
+  createServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+  }).listen(Number(process.env.PORT), () => {
+    console.log(`Health check listening on :${process.env.PORT}`);
+  });
+}
