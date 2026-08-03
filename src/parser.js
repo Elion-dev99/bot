@@ -1,9 +1,20 @@
 /**
  * コマンドを抽出・解析する
  * 例: 入金 太郎 1000 / (総額) / 登録 花子 3000
+ * 改行で複数コマンドも可
  */
 
 const COMMAND_RE = /[（(]\s*([^）)]+?)\s*[）)]/g;
+
+const SINGLE_COMMAND_RE =
+  /^(ヘルプ|help|総額|未集金|一覧|履歴|取消|リセット|リセット確認)$/i;
+const ARGS_COMMAND_RE = /^(入金|出金|登録|目標|削除)(\s+|\+).+/;
+
+export function isCommandLine(line) {
+  const bare = String(line).trim();
+  if (!bare) return false;
+  return SINGLE_COMMAND_RE.test(bare) || ARGS_COMMAND_RE.test(bare);
+}
 
 export function extractCommands(content) {
   const results = [];
@@ -12,6 +23,18 @@ export function extractCommands(content) {
     results.push(match[1].trim());
   }
   return results;
+}
+
+/** 改行区切りの複数コマンドを抽出（括弧なし形式） */
+export function extractBareCommands(content) {
+  const lines = String(content)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) return [];
+  if (!lines.every(isCommandLine)) return [];
+  return lines;
 }
 
 export function parseCommand(raw) {

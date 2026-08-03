@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { extractCommands, parseCommand, parseAmount } from "../src/parser.js";
+import { extractCommands, extractBareCommands, parseCommand, parseAmount } from "../src/parser.js";
 import { handleCommand } from "../src/commands.js";
 
 const TEST_CHANNEL = "test-channel-unit";
@@ -33,6 +33,14 @@ describe("parser", () => {
       args: ["太郎", "1000"],
       raw: "入金+太郎+1000",
     });
+  });
+
+  it("改行の連続コマンドを抽出する", () => {
+    assert.deepEqual(
+      extractBareCommands("登録 太郎 3000\n登録 花子 3000\n総額"),
+      ["登録 太郎 3000", "登録 花子 3000", "総額"]
+    );
+    assert.deepEqual(extractBareCommands("雑談\n登録 太郎 3000"), []);
   });
 
   it("金額をパースする", () => {

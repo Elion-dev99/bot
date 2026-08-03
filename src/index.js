@@ -5,7 +5,7 @@ import {
   Partials,
   Events,
 } from "discord.js";
-import { extractCommands, parseCommand } from "./parser.js";
+import { extractCommands, extractBareCommands, parseCommand } from "./parser.js";
 import { handleCommand } from "./commands.js";
 
 const token = process.env.DISCORD_TOKEN;
@@ -61,15 +61,9 @@ client.on(Events.MessageCreate, async (message) => {
 
     let rawCommands = extractCommands(message.content);
 
-    // 括弧なしでも主要コマンドを受け付ける（メッセージ全体がコマンドのとき）
+    // 括弧なし: 1行1コマンド、改行で連続指定可
     if (rawCommands.length === 0) {
-      const bare = message.content.trim();
-      if (
-        /^(ヘルプ|help|総額|未集金|一覧|履歴|取消|リセット|リセット確認)$/i.test(bare) ||
-        /^(入金|出金|登録|目標|削除)(\s+|\+).+/.test(bare)
-      ) {
-        rawCommands = [bare];
-      }
+      rawCommands = extractBareCommands(message.content);
     }
 
     if (rawCommands.length === 0) return;
