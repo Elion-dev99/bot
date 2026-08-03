@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { extractCommands, extractBareCommands, parseCommand } from "./parser.js";
 import { handleCommand } from "./commands.js";
+import { collectDueReminders } from "./remind.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token || token === "your_bot_token_here") {
@@ -37,6 +38,24 @@ client.once(Events.ClientReady, (c) => {
   } else {
     console.log("許可チャンネル制限なし（全テキストチャンネルで反応）");
   }
+
+  // 1分ごとにリマインド判定（毎週指定曜・時）
+  const tick = async () => {
+    try {
+      const due = collectDueReminders();
+      for (const item of due) {
+        const channel = await client.channels.fetch(item.channelId).catch(() => null);
+        if (channel && channel.isTextBased()) {
+          await channel.send({ content: item.content });
+          console.log(`[remind] sent to ${item.channelId}`);
+        }
+      }
+    } catch (err) {
+      console.error("リマインド処理エラー:", err);
+    }
+  };
+  tick();
+  setInterval(tick, 60 * 1000);
 });
 
 client.on(Events.Error, (err) => {

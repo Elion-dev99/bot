@@ -8,39 +8,44 @@ import {
 } from "./store.js";
 import { parseAmount } from "./parser.js";
 import { yen, memberStatusLine, historyLine } from "./format.js";
+import {
+  parseBillTokens,
+  formatBills,
+  sumBills,
+  bundlingAdvice,
+  reconcile,
+  emptyBills,
+} from "./cash.js";
 
 const HELP_TEXT = `📋 **集金Bot コマンド一覧**
 半角スペース区切り。入金/出金は **入力者** を先頭につけます。
 
 **入力者・金庫**
 \`入力者 つむぎ\` … 入力者を追加
-\`入力者\` … 入力者一覧と各金庫残高
-\`つむぎ 総額\` … つむぎ金庫の合計
-\`総額\` … 全体合計 + 金庫別
+\`つむぎ 総額\` / \`総額\` … 金庫・全体の合計
 
 **入金/出金**
 \`つむぎ 入金 名前 金額\`
 \`れんた 出金 名前 金額\`
 
-**名簿・進捗**
-\`登録 名前 目標金額\`
-\`未集金\` … 全体の未集金
-\`一覧\` … 全員の状況
-\`つむぎ 一覧\` … つむぎ経由の入金だけ表示
+**お札チェック（定期）**
+\`つむぎ 札 万2 五千1 千10\` … 実在お札を記録して金庫と突合
+\`つむぎ 突合\` … 前回の札内訳と金庫残高を再確認
+\`つむぎ まとめ\` … お札まとめ案 + 実施記録
+\`突合\` … 全員の金庫を一括チェック
+
+**期間・リマインド**
+\`期間 2026-08-03 2026-10-03\` … 集金期間
+\`リマインド 日 20\` … 毎週その曜・時に突合リマインド
+\`リマインド オフ\`
+
+**名簿**
+\`登録 名前 目標金額\` / \`未集金\` / \`一覧\`
 
 **その他**
-\`履歴\` / \`つむぎ 履歴\` / \`取消\` / \`つむぎ 取消\`
-\`リセット確認\` / \`ヘルプ\`
+\`履歴\` / \`取消\` / \`ヘルプ\`
 
-例:
-\`\`\`
-入力者 つむぎ
-入力者 れんた
-つむぎ 入金 やまと 5000
-れんた 入金 かいと 3000
-総額
-未集金
-\`\`\``;
+札の書き方例: \`万2\` \`五千3\` \`千10\` \`10000:2\``;
 
 function memberNames(state) {
   return Object.keys(state.members).sort((a, b) => a.localeCompare(b, "ja"));
@@ -97,6 +102,36 @@ function requireCollector(collector) {
     return "⚠️ 入力者をつけてください。例: `つむぎ 入金 太郎 1000`";
   }
   return null;
+}
+
+function formatPeriod(period) {
+  if (!period?.start || !period?.end) return "未設定";
+  return `${period.start} 〜 ${period.end}`;
+}
+
+function buildReconcileReport(state, collector) {
+  const c = ensureCollector(state, collector);
+  const vault = c.balance || 0;
+  const billTotal = sumBills(c.bills || emptyBills());
+  const result = reconcile(vault, billTotal);
+  const counted = c.lastCountAt
+    ? new Date(c.lastCountAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+    : "未実施";
+  const bundled = c.lastBundleAt
+    ? new Date(c.lastBundleAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+    : "未実施";
+  return [
+    `🔍 **[${collector}] 突合**`,
+    `金庫残高: ${yen(vault)}`,
+    `お札合計: ${yen(billTotal)}`,
+    result.message,
+    ``,
+    `**お札内訳**`,
+    formatBills(c.bills),
+    ``,
+    `最終実査: ${counted}`,
+    `最終まとめ: ${bundled}`,
+  ].join("\n");
 }
 
 export function handleCommand(channelId, { action, args, collector = null }) {
@@ -417,12 +452,144 @@ export function handleCommand(channelId, { action, args, collector = null }) {
       state.collectors = {};
       state.defaultTarget = 0;
       state.history = [];
+      state.period = null;
+      state.remind = {
+        enabled: false,
+        dayOfWeek: 0,
+        hourJst: 20,
+        channelId: null,
+        lastSentDate: null,
+      };
       saveChannel(channelId, state);
       return `🧹 このチャンネルの集金データをリセットしました。削除した名簿: ${count}人\n※ 取り消しはできません。`;
     }
 
     case "リセット":
       return "⚠️ 本当に消す場合は `リセット確認` と送信してください。このチャンネルの名簿・入金・履歴がすべて消えます。";
+
+    case "札": {
+      const missing = requireCollector(collector);
+      if (missing) return missing;
+      if (args.length === 0) {
+        const c = ensureCollector(state, collector);
+        return [
+          `🧾 **[${collector}] お札内訳**`,
+          formatBills(c.bills),
+          `お札合計: ${yen(sumBills(c.bills))}`,
+          `金庫残高: ${yen(c.balance || 0)}`,
+          reconcile(c.balance || 0, sumBills(c.bills)).message,
+          ``,
+          `更新するとき: \`${collector} 札 万2 五千1 千10\``,
+        ].join("\n");
+      }
+      const parsed = parseBillTokens(args);
+      if (parsed.error) return parsed.error;
+      const c = ensureCollector(state, collector);
+      c.bills = parsed.bills;
+      c.lastCountAt = new Date().toISOString();
+      addHistory(state, {
+        type: "bill_count",
+        collector,
+        amount: parsed.total,
+        bills: parsed.bills,
+      });
+      saveChannel(channelId, state);
+      const result = reconcile(c.balance || 0, parsed.total);
+      return [
+        `🧾 **[${collector}] お札を記録しました**`,
+        formatBills(parsed.bills),
+        `お札合計: ${yen(parsed.total)}`,
+        `金庫残高: ${yen(c.balance || 0)}`,
+        result.message,
+      ].join("\n");
+    }
+
+    case "突合": {
+      if (collector) {
+        ensureCollector(state, collector);
+        return buildReconcileReport(state, collector);
+      }
+      const names = collectorNames(state);
+      if (names.length === 0) {
+        return "📭 入力者がいません。先に `入力者 つむぎ` してください。";
+      }
+      return names.map((n) => buildReconcileReport(state, n)).join("\n\n---\n\n");
+    }
+
+    case "まとめ": {
+      const missing = requireCollector(collector);
+      if (missing) return missing;
+      const c = ensureCollector(state, collector);
+      const tips = bundlingAdvice(c.bills || emptyBills());
+      c.lastBundleAt = new Date().toISOString();
+      addHistory(state, {
+        type: "bundle",
+        collector,
+        amount: sumBills(c.bills),
+      });
+      saveChannel(channelId, state);
+      return [
+        `📦 **[${collector}] お札まとめ**`,
+        formatBills(c.bills),
+        `お札合計: ${yen(sumBills(c.bills))} / 金庫 ${yen(c.balance || 0)}`,
+        reconcile(c.balance || 0, sumBills(c.bills)).message,
+        ``,
+        `**まとめ案**`,
+        ...tips.map((t) => `・${t}`),
+        ``,
+        `まとめ実施を記録しました。`,
+      ].join("\n");
+    }
+
+    case "期間": {
+      if (args.length === 0) {
+        return `📅 集金期間: ${formatPeriod(state.period)}`;
+      }
+      if (args.length < 2) {
+        return "形式: `期間 2026-08-03 2026-10-03`";
+      }
+      const [start, end] = args;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+        return "日付は `YYYY-MM-DD` 形式で指定してください。";
+      }
+      state.period = { start, end };
+      addHistory(state, { type: "period", start, end });
+      saveChannel(channelId, state);
+      return `📅 集金期間を設定しました: ${start} 〜 ${end}`;
+    }
+
+    case "リマインド": {
+      if (args.length === 0) {
+        const r = state.remind || {};
+        if (!r.enabled) return "🔔 リマインドはオフです。`リマインド 日 20` で毎週日曜20時などに設定できます。";
+        const days = ["日", "月", "火", "水", "木", "金", "土"];
+        return `🔔 リマインド: 毎週${days[r.dayOfWeek] ?? "?"}曜 ${r.hourJst}:00 JST\n集金期間: ${formatPeriod(state.period)}`;
+      }
+      if (args[0] === "オフ" || args[0] === "off") {
+        state.remind = {
+          ...(state.remind || {}),
+          enabled: false,
+          channelId: null,
+        };
+        saveChannel(channelId, state);
+        return "🔔 リマインドをオフにしました。";
+      }
+      const dayMap = { 日: 0, 月: 1, 火: 2, 水: 3, 木: 4, 金: 5, 土: 6 };
+      const day = dayMap[args[0]];
+      const hour = args[1] != null ? Number(args[1]) : 20;
+      if (day == null || !Number.isFinite(hour) || hour < 0 || hour > 23) {
+        return "形式: `リマインド 日 20`（曜と0-23時） / `リマインド オフ`";
+      }
+      state.remind = {
+        enabled: true,
+        dayOfWeek: day,
+        hourJst: hour,
+        channelId,
+        lastSentDate: state.remind?.lastSentDate || null,
+      };
+      saveChannel(channelId, state);
+      return `🔔 毎週${args[0]}曜 ${hour}:00 に突合・お札まとめリマインドを送ります。\nオフにするとき: \`リマインド オフ\``;
+    }
 
     default:
       return `❓ 不明なコマンド: \`${action}\`\n\`ヘルプ\` で使い方を確認できます。`;

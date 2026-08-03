@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { emptyBills } from "./cash.js";
 
 const DATA_DIR = path.resolve("data");
 
@@ -19,6 +20,14 @@ function defaultState() {
     collectors: {},
     members: {},
     history: [],
+    period: null, // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' }
+    remind: {
+      enabled: false,
+      dayOfWeek: 0, // 0=日 ... 6=土
+      hourJst: 20,
+      channelId: null,
+      lastSentDate: null, // 'YYYY-MM-DD'
+    },
   };
 }
 
@@ -31,7 +40,6 @@ function normalizeMember(member, defaultTarget = 0) {
     (sum, n) => sum + (Number(n) || 0),
     0
   );
-  // byCollector がある場合はそれを正とし、無い場合は従来の paid を維持
   const paid =
     Object.keys(byCollector).length > 0
       ? paidFromCollectors
@@ -40,6 +48,15 @@ function normalizeMember(member, defaultTarget = 0) {
     target: Number(member.target) || defaultTarget || 0,
     paid,
     byCollector,
+  };
+}
+
+function normalizeCollector(collector) {
+  return {
+    balance: Number(collector?.balance) || 0,
+    bills: { ...emptyBills(), ...(collector?.bills || {}) },
+    lastCountAt: collector?.lastCountAt || null,
+    lastBundleAt: collector?.lastBundleAt || null,
   };
 }
 
@@ -58,13 +75,20 @@ export function loadChannel(channelId) {
         members[name] = normalizeMember(member, defaultTarget);
       }
     }
-    const collectors =
-      raw.collectors && typeof raw.collectors === "object" ? raw.collectors : {};
+    const collectors = {};
+    if (raw.collectors && typeof raw.collectors === "object") {
+      for (const [name, c] of Object.entries(raw.collectors)) {
+        collectors[name] = normalizeCollector(c);
+      }
+    }
+    const base = defaultState();
     return {
       defaultTarget,
       collectors,
       members,
       history: Array.isArray(raw.history) ? raw.history : [],
+      period: raw.period || null,
+      remind: { ...base.remind, ...(raw.remind || {}) },
     };
   } catch {
     return defaultState();
@@ -74,6 +98,14 @@ export function loadChannel(channelId) {
 export function saveChannel(channelId, state) {
   ensureDir();
   fs.writeFileSync(filePath(channelId), JSON.stringify(state, null, 2), "utf8");
+}
+
+export function listChannelIds() {
+  ensureDir();
+  return fs
+    .readdirSync(DATA_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.replace(/\.json$/, ""));
 }
 
 export function getOrCreateMember(state, name) {
@@ -93,7 +125,9 @@ export function getOrCreateMember(state, name) {
 export function ensureCollector(state, collector) {
   if (!state.collectors) state.collectors = {};
   if (!state.collectors[collector]) {
-    state.collectors[collector] = { balance: 0 };
+    state.collectors[collector] = normalizeCollector({});
+  } else {
+    state.collectors[collector] = normalizeCollector(state.collectors[collector]);
   }
   return state.collectors[collector];
 }

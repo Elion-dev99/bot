@@ -31,6 +31,12 @@ export function historyLine(entry) {
       return `・[${time}] 目標変更 ${entry.name ?? "全体デフォルト"} ${yen(entry.target)}`;
     case "undo":
       return `・[${time}] ${who}取消 ${entry.undoneType}`;
+    case "bundle":
+      return `・[${time}] ${who}お札まとめ`;
+    case "bill_count":
+      return `・[${time}] ${who}札実査 ${yen(entry.amount)}`;
+    case "period":
+      return `・[${time}] 期間 ${entry.start} 〜 ${entry.end}`;
     case "reset":
       return `・[${time}] リセット`;
     default:
