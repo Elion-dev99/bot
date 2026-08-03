@@ -10,7 +10,7 @@ export function memberStatusLine(name, member) {
       : unpaid === 0 && (member.target || 0) === 0
         ? "— 目標未設定"
         : `⏳ 未集金 ${yen(unpaid)}`;
-  return `・${name}: 入金 ${yen(member.paid || 0)} / 目標 ${yen(member.target || 0)}（${status}）`;
+  return `・${name}: 入金 ${yen(member.paid || 0)} / 目標 ${yen(member.target || 0)} / ${status}`;
 }
 
 export function historyLine(entry) {
