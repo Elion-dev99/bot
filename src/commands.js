@@ -8,7 +8,7 @@ import { parseAmount } from "./parser.js";
 import { yen, memberStatusLine, historyLine } from "./format.js";
 
 const HELP_TEXT = `📋 **集金Bot コマンド一覧**
-メッセージを \`()\` または \`（）\` で囲んで送信してください。
+\`()\` / \`（）\` で囲むか、メッセージ全体をコマンドにして送信してください。
 
 **基本**
 \`(入金+名前+金額)\` … 入金を記録
@@ -30,6 +30,7 @@ const HELP_TEXT = `📋 **集金Bot コマンド一覧**
 \`(リセット確認)\` … このチャンネルの集金データを全消去
 \`(ヘルプ)\` … このヘルプを表示
 
+例: \`ヘルプ\` / \`総額\` / \`入金+太郎+1000\` でもOKです。
 ※ データはチャンネルごとに独立して保存されます。`;
 
 function memberNames(state) {
@@ -74,8 +75,14 @@ function requireNameAmount(args) {
 
 export function handleCommand(channelId, { action, args }) {
   const state = loadChannel(channelId);
+  // 全角・表記ゆれを吸収
+  const normalizedAction = String(action)
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (ch) =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xfee0)
+    )
+    .trim();
 
-  switch (action) {
+  switch (normalizedAction) {
     case "ヘルプ":
     case "help":
     case "Help":

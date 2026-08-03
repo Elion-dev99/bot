@@ -59,18 +59,20 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    const rawCommands = extractCommands(message.content);
+    let rawCommands = extractCommands(message.content);
+
+    // 括弧なしでも主要コマンドを受け付ける（メッセージ全体がコマンドのとき）
     if (rawCommands.length === 0) {
-      // 括弧なしで送られたときのヒント
-      if (/^(ヘルプ|help|総額|未集金|一覧)$/i.test(message.content.trim()) ||
-          /^(入金|出金|登録)\+/.test(message.content.trim())) {
-        await message.reply({
-          content: "📌 コマンドは括弧で囲んでください。例: `(ヘルプ)` `(総額)` `(入金+太郎+1000)`",
-          allowedMentions: { repliedUser: false },
-        });
+      const bare = message.content.trim();
+      if (
+        /^(ヘルプ|help|総額|未集金|一覧|履歴|取消|リセット|リセット確認)$/i.test(bare) ||
+        /^(入金|出金|登録|目標|削除)\+.+/.test(bare)
+      ) {
+        rawCommands = [bare];
       }
-      return;
     }
+
+    if (rawCommands.length === 0) return;
 
     const replies = [];
     for (const raw of rawCommands) {
