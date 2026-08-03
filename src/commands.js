@@ -109,9 +109,9 @@ export function handleCommand(channelId, { action, args }) {
       const unpaid = Math.max(0, (member.target || 0) - member.paid);
       const progress =
         member.target > 0
-          ? `\n進捗: ${yen(member.paid)} / ${yen(member.target)} / 残り ${yen(unpaid)}`
-          : `\n現在の入金額: ${yen(member.paid)}`;
-      return `✅ **入金記録**\n${name} に ${yen(amount)} を加算しました。${progress}`;
+          ? ` / ${yen(member.paid)}・目標${yen(member.target)}・残${yen(unpaid)}`
+          : ` / 計 ${yen(member.paid)}`;
+      return `✅ 入金 ${name} ${yen(amount)}${progress}`;
     }
 
     case "出金": {
@@ -133,7 +133,7 @@ export function handleCommand(channelId, { action, args }) {
         balanceAfter: member.paid,
       });
       saveChannel(channelId, state);
-      return `💸 **出金記録**\n${name} から ${yen(amount)} を減額しました。\n現在の入金額: ${yen(member.paid)}`;
+      return `💸 出金 ${name} ${yen(amount)} / 計 ${yen(member.paid)}`;
     }
 
     case "総額": {
@@ -180,12 +180,12 @@ export function handleCommand(channelId, { action, args }) {
         state.members[name].target = target;
         addHistory(state, { type: "set_target", name, target });
         saveChannel(channelId, state);
-        return `🔄 \`${name}\` は既に登録済みです。目標を ${yen(target)} に更新しました。\n現在の入金額: ${yen(state.members[name].paid || 0)}`;
+        return `🔄 更新 ${name} 目標 ${yen(target)} / 入金 ${yen(state.members[name].paid || 0)}`;
       }
       state.members[name] = { target, paid: 0 };
       addHistory(state, { type: "register", name, target });
       saveChannel(channelId, state);
-      return `👤 **登録完了**\n${name} を目標 ${yen(target)} で登録しました。`;
+      return `✅ 登録 ${name} 目標 ${yen(target)}`;
     }
 
     case "目標": {

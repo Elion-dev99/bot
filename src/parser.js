@@ -25,7 +25,7 @@ export function extractCommands(content) {
   return results;
 }
 
-/** 改行区切りの複数コマンドを抽出（括弧なし形式） */
+/** 改行区切りのコマンドを抽出（有効な行だけ拾う） */
 export function extractBareCommands(content) {
   const lines = String(content)
     .split(/\r?\n/)
@@ -33,8 +33,11 @@ export function extractBareCommands(content) {
     .filter(Boolean);
 
   if (lines.length === 0) return [];
-  if (!lines.every(isCommandLine)) return [];
-  return lines;
+
+  const commands = lines.filter(isCommandLine);
+  // 1行だけのときは従来どおり。複数行なら有効行だけ処理
+  if (lines.length === 1) return commands;
+  return commands;
 }
 
 export function parseCommand(raw) {

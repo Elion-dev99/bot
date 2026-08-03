@@ -39,6 +39,58 @@ client.once(Events.ClientReady, (c) => {
   }
 });
 
+client.on(Events.Error, (err) => {
+  console.error("Discord client error:", err);
+});
+
+client.on(Events.Warn, (info) => {
+  console.warn("Discord client warn:", info);
+});
+
+client.on(Events.ShardDisconnect, (event) => {
+  console.warn("Shard disconnect:", event);
+});
+
+client.on(Events.ShardReconnecting, () => {
+  console.warn("Shard reconnecting...");
+});
+
+async function sendResponse(message, body) {
+  const chunks = [];
+  if (body.length <= 1900) {
+    chunks.push(body);
+  } else {
+    let current = "";
+    for (const part of body.split("\n")) {
+      const next = current ? `${current}\n${part}` : part;
+      if (next.length > 1900) {
+        if (current) chunks.push(current);
+        // 1行自体が長い場合は強制分割
+        if (part.length > 1900) {
+          for (let i = 0; i < part.length; i += 1900) {
+            chunks.push(part.slice(i, i + 1900));
+          }
+          current = "";
+        } else {
+          current = part;
+        }
+      } else {
+        current = next;
+      }
+    }
+    if (current) chunks.push(current);
+  }
+
+  for (let i = 0; i < chunks.length; i++) {
+    const content = chunks[i];
+    if (i === 0) {
+      await message.reply({ content, allowedMentions: { repliedUser: false } });
+    } else {
+      await message.channel.send({ content });
+    }
+  }
+}
+
 client.on(Events.MessageCreate, async (message) => {
   try {
     if (message.author.bot) return;
@@ -51,7 +103,6 @@ client.on(Events.MessageCreate, async (message) => {
       `[msg] guild=${message.guildId} channel=${message.channelId} author=${message.author.tag} content=${JSON.stringify(message.content)}`
     );
 
-    // Message Content Intent が効いていないと content が空になる
     if (!message.content) {
       console.warn(
         "[warn] message.content が空です。Developer Portal で MESSAGE CONTENT INTENT を ON にしたあと Bot を再起動してください。"
@@ -60,13 +111,12 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     let rawCommands = extractCommands(message.content);
-
-    // 括弧なし: 1行1コマンド、改行で連続指定可
     if (rawCommands.length === 0) {
       rawCommands = extractBareCommands(message.content);
     }
-
     if (rawCommands.length === 0) return;
+
+    console.log(`[cmd] ${rawCommands.length}件: ${rawCommands.join(" | ")}`);
 
     const replies = [];
     for (const raw of rawCommands) {
@@ -78,26 +128,12 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (replies.length === 0) return;
 
-    const body = replies.join("\n\n---\n\n");
-    // Discord の文字数制限対策
-    if (body.length <= 1900) {
-      await message.reply({ content: body, allowedMentions: { repliedUser: false } });
-    } else {
-      const chunks = [];
-      let current = "";
-      for (const part of body.split("\n")) {
-        if ((current + "\n" + part).length > 1900) {
-          chunks.push(current);
-          current = part;
-        } else {
-          current = current ? `${current}\n${part}` : part;
-        }
-      }
-      if (current) chunks.push(current);
-      for (const chunk of chunks) {
-        await message.channel.send({ content: chunk });
-      }
-    }
+    // 複数件は短く並べる（文字数制限対策）
+    const body =
+      replies.length === 1 ? replies[0] : replies.join("\n");
+
+    await sendResponse(message, body);
+    console.log(`[ok] replied ${replies.length} result(s), ${body.length} chars`);
   } catch (err) {
     console.error("メッセージ処理エラー:", err);
     try {
@@ -105,8 +141,8 @@ client.on(Events.MessageCreate, async (message) => {
         content: "⚠️ 処理中にエラーが発生しました。しばらくしてから再度お試しください。",
         allowedMentions: { repliedUser: false },
       });
-    } catch {
-      // ignore
+    } catch (replyErr) {
+      console.error("エラー返信にも失敗:", replyErr);
     }
   }
 });
