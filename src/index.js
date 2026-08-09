@@ -9,6 +9,11 @@ import { createServer } from "node:http";
 import { extractCommands, extractBareCommands, parseCommand } from "./parser.js";
 import { handleCommand } from "./commands.js";
 import { collectDueReminders } from "./remind.js";
+import {
+  handleAutocomplete,
+  handleSlashCommand,
+  registerSlashCommands,
+} from "./slash.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token || token === "your_bot_token_here") {
@@ -32,11 +37,11 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.once(Events.ClientReady, (c) => {
+client.once(Events.ClientReady, async (c) => {
   console.log(`ログイン完了: ${c.user.tag}`);
   c.user.setPresence({
     status: "online",
-    activities: [{ name: "集金記録 | ヘルプ", type: 3 }], // Watching
+    activities: [{ name: "集金記録 | /入金", type: 3 }],
   });
   if (allowedChannels.length > 0) {
     console.log(`許可チャンネル: ${allowedChannels.join(", ")}`);
@@ -45,7 +50,12 @@ client.once(Events.ClientReady, (c) => {
   }
   console.log(`DATA_DIR=${process.env.DATA_DIR || "data"}`);
 
-  // 1分ごとにリマインド判定（毎週指定曜・時）
+  try {
+    await registerSlashCommands(c);
+  } catch (err) {
+    console.error("スラッシュコマンド登録エラー:", err);
+  }
+
   const tick = async () => {
     try {
       const due = collectDueReminders();
@@ -80,6 +90,44 @@ client.on(Events.ShardReconnecting, () => {
   console.warn("Shard reconnecting...");
 });
 
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+    if (allowedChannels.length > 0 && !allowedChannels.includes(interaction.channelId)) {
+      if (interaction.isRepliable()) {
+        await interaction.reply({
+          content: "このチャンネルでは使えません。",
+          ephemeral: true,
+        });
+      }
+      return;
+    }
+
+    if (interaction.isAutocomplete()) {
+      await handleAutocomplete(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand()) {
+      console.log(
+        `[slash] ${interaction.commandName} by ${interaction.user.tag} in ${interaction.channelId}`
+      );
+      await handleSlashCommand(interaction);
+    }
+  } catch (err) {
+    console.error("インタラクション処理エラー:", err);
+    try {
+      const msg = "⚠️ 処理中にエラーが発生しました。";
+      if (interaction.deferred || interaction.replied) {
+        await interaction.followUp({ content: msg, ephemeral: true });
+      } else if (interaction.isRepliable()) {
+        await interaction.reply({ content: msg, ephemeral: true });
+      }
+    } catch {
+      // ignore
+    }
+  }
+});
+
 async function sendResponse(message, body) {
   const chunks = [];
   if (body.length <= 1900) {
@@ -90,7 +138,6 @@ async function sendResponse(message, body) {
       const next = current ? `${current}\n${part}` : part;
       if (next.length > 1900) {
         if (current) chunks.push(current);
-        // 1行自体が長い場合は強制分割
         if (part.length > 1900) {
           for (let i = 0; i < part.length; i += 1900) {
             chunks.push(part.slice(i, i + 1900));
@@ -153,7 +200,6 @@ client.on(Events.MessageCreate, async (message) => {
 
     if (replies.length === 0) return;
 
-    // 複数件は短く並べる（文字数制限対策）
     const body =
       replies.length === 1 ? replies[0] : replies.join("\n");
 
@@ -174,9 +220,7 @@ client.on(Events.MessageCreate, async (message) => {
 
 client.login(token);
 
-// Railway など PaaS 向け: PORT が来る場合はヘルスチェック用 HTTP を立てる
 if (process.env.PORT) {
-  const { createServer } = await import("node:http");
   createServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("ok");

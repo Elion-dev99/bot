@@ -17,7 +17,8 @@ if (!clientId) {
 
 // View Channels + Send Messages + Read Message History + Embed Links
 const permissions = 1024 + 2048 + 65536 + 16384;
-const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=bot`;
+// bot + applications.commands（スラッシュコマンド用）
+const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=${permissions}&scope=bot%20applications.commands`;
 
 console.log("\nBot 招待リンク（サーバーに追加するときに開く）:\n");
 console.log(url);
