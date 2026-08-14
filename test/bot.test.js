@@ -27,6 +27,19 @@ describe("parser", () => {
     });
   });
 
+  it("スラッシュ空間区切りの削除コマンドを分解する", () => {
+    assert.deepEqual(parseCommand("/削除 管理者 太郎 退会のため"), {
+      action: "削除",
+      args: ["管理者", "太郎", "退会のため"],
+      raw: "/削除 管理者 太郎 退会のため",
+    });
+    assert.deepEqual(parseCommand("/削除 管理者 太郎 長期 欠席 のため"), {
+      action: "削除",
+      args: ["管理者", "太郎", "長期", "欠席", "のため"],
+      raw: "/削除 管理者 太郎 長期 欠席 のため",
+    });
+  });
+
   it("金額をパースする", () => {
     assert.equal(parseAmount("1000"), 1000);
     assert.equal(parseAmount("1,000円"), 1000);
@@ -49,6 +62,47 @@ describe("commands", () => {
     assert.match(unpaid, /花子/);
     assert.match(unpaid, /2,000円/);
     assert.doesNotMatch(unpaid, /太郎/);
+  });
+
+  it("削除は入力者と理由を記録する", () => {
+    reset();
+    handleCommand(TEST_CHANNEL, { action: "登録", args: ["太郎", "3000"] });
+    handleCommand(TEST_CHANNEL, { action: "登録", args: ["花子", "3000"] });
+
+    assert.match(
+      handleCommand(TEST_CHANNEL, {
+        action: "削除",
+        args: ["管理者"],
+      }),
+      /形式/
+    );
+
+    const removed = handleCommand(TEST_CHANNEL, {
+      action: "削除",
+      args: ["管理者", "太郎", "退会のため"],
+    });
+    assert.match(removed, /削除完了/);
+    assert.match(removed, /入力者: 管理者/);
+    assert.match(removed, /理由: 退会のため/);
+
+    const list = handleCommand(TEST_CHANNEL, { action: "一覧", args: [] });
+    assert.doesNotMatch(list, /太郎/);
+    assert.match(list, /花子/);
+
+    const history = handleCommand(TEST_CHANNEL, { action: "履歴", args: [] });
+    assert.match(history, /削除 太郎/);
+    assert.match(history, /入力者: 管理者/);
+    assert.match(history, /理由: 退会のため/);
+  });
+
+  it("スラッシュ空間区切りの理由（スペース含む）で削除できる", () => {
+    reset();
+    handleCommand(TEST_CHANNEL, { action: "登録", args: ["次郎", "1000"] });
+    const parsed = parseCommand("/削除 花子 次郎 長期欠席のため");
+    const result = handleCommand(TEST_CHANNEL, parsed);
+    assert.match(result, /削除完了/);
+    assert.match(result, /入力者: 花子/);
+    assert.match(result, /理由: 長期欠席のため/);
   });
 
   it("出金と取消ができる", () => {
