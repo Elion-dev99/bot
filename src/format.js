@@ -25,7 +25,9 @@ export function historyLine(entry) {
     case "register":
       return `・[${time}] 登録 ${entry.name} 目標 ${yen(entry.target)}`;
     case "remove":
-      return `・[${time}] 削除 ${entry.name}`;
+      return entry.operator || entry.reason
+        ? `・[${time}] 削除 ${entry.name}（入力者: ${entry.operator ?? "—"} / 理由: ${entry.reason ?? "—"}）`
+        : `・[${time}] 削除 ${entry.name}`;
     case "set_target":
       return `・[${time}] 目標変更 ${entry.name ?? "全体デフォルト"} ${yen(entry.target)}`;
     case "undo":

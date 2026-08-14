@@ -20,7 +20,8 @@ const HELP_TEXT = `📋 **集金Bot コマンド一覧**
 \`登録+名前\` … デフォルト目標で登録
 \`目標+金額\` … 新規登録時のデフォルト目標を設定
 \`目標+名前+金額\` … 個人の目標金額を変更
-\`削除+名前\` … 名簿から削除
+\`/削除 入力者 削除対象の名前 理由\` … 名簿から削除（理由必須）
+\`削除+入力者+削除対象の名前+理由\` … 同上（+区切り）
 \`一覧\` … 全員の入金状況
 
 **その他**
@@ -29,7 +30,7 @@ const HELP_TEXT = `📋 **集金Bot コマンド一覧**
 \`リセット確認\` … このチャンネルの集金データを全消去
 \`ヘルプ\` … このヘルプを表示
 
-例: \`ヘルプ\` / \`総額\` / \`入金+太郎+1000\`
+例: \`ヘルプ\` / \`総額\` / \`入金+太郎+1000\` / \`/削除 管理者 太郎 退会のため\`
 ※ データはチャンネルごとに独立して保存されます。`;
 
 function memberNames(state) {
@@ -205,8 +206,16 @@ export function handleCommand(channelId, { action, args }) {
     }
 
     case "削除": {
-      if (args.length < 1) return "形式: `削除+名前`";
-      const name = args[0];
+      // /削除 入力者 削除対象 理由… または 削除+入力者+削除対象+理由…
+      if (args.length < 3) {
+        return "形式: `/削除 入力者 削除対象の名前 理由` または `削除+入力者+削除対象の名前+理由`";
+      }
+      const operator = args[0];
+      const name = args[1];
+      const reason = args.slice(2).join(" ").trim();
+      if (!reason) {
+        return "形式: `/削除 入力者 削除対象の名前 理由` または `削除+入力者+削除対象の名前+理由`";
+      }
       if (!state.members[name]) {
         return `⚠️ \`${name}\` は名簿にいません。`;
       }
@@ -215,11 +224,13 @@ export function handleCommand(channelId, { action, args }) {
       addHistory(state, {
         type: "remove",
         name,
+        operator,
+        reason,
         paid: snapshot.paid,
         target: snapshot.target,
       });
       saveChannel(channelId, state);
-      return `🗑️ \`${name}\` を名簿から削除しました。`;
+      return `🗑️ **削除完了**\n\`${name}\` を名簿から削除しました。\n入力者: ${operator}\n理由: ${reason}`;
     }
 
     case "一覧": {
