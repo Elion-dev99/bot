@@ -83,6 +83,20 @@ client.once(Events.ClientReady, async (c) => {
   await registerSlashCommands();
 });
 
+client.on(Events.ShardDisconnect, (event, shardId) => {
+  console.warn(
+    `[shard ${shardId}] Discord から切断 code=${event.code} reason=${event.reason || "(none)"}`
+  );
+});
+
+client.on(Events.ShardReconnecting, (shardId) => {
+  console.log(`[shard ${shardId}] 再接続中...`);
+});
+
+client.on(Events.ShardError, (error, shardId) => {
+  console.error(`[shard ${shardId}] エラー:`, error);
+});
+
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (!interaction.isChatInputCommand()) return;
@@ -227,4 +241,24 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-client.login(token);
+process.on("unhandledRejection", (reason) => {
+  console.error("未処理の Promise 拒否:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("未捕捉の例外:", error);
+});
+
+function shutdown(signal) {
+  console.log(`${signal} を受信しました。Bot を終了します...`);
+  client.destroy();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+client.login(token).catch((err) => {
+  console.error("Discord へのログインに失敗しました:", err);
+  process.exit(1);
+});

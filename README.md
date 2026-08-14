@@ -60,6 +60,55 @@ npm run invite
 
 任意で `ALLOWED_CHANNEL_IDS` にチャンネル ID をカンマ区切り指定すると、そのチャンネルだけ反応します。
 
+## 常時オンライン（24時間稼働）
+
+Discord Bot は **プロセスが動いている間だけ** オンライン表示になります。PC のターミナルで `npm start` したあと PC をスリープさせたり、ターミナルを閉じると Bot はオフラインになります。
+
+常時オンラインにするには、VPS やクラウド上で Bot を起動し続けてください。
+
+### 方法 A: Docker（おすすめ）
+
+```bash
+cp .env.example .env
+# .env に DISCORD_TOKEN などを設定
+
+docker compose up -d --build
+docker compose logs -f bot   # ログ確認
+```
+
+`restart: unless-stopped` により、サーバー再起動後も自動で Bot が立ち上がります。集金データは Docker ボリューム `bot-data` に保存されます。
+
+### 方法 B: PM2（VPS / 常時起動サーバー）
+
+```bash
+npm install
+npm install -g pm2
+cp .env.example .env
+# .env を編集
+
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup   # 表示されたコマンドを実行すると OS 再起動後も自動起動
+```
+
+### 方法 C: Railway / Fly.io など
+
+1. このリポジトリをデプロイ先に接続
+2. **Worker / Background** タイプのサービスとして作成（Web サーバーではなく常駐プロセス）
+3. 環境変数 `DISCORD_TOKEN`（必須）、`DISCORD_CLIENT_ID`（推奨）を設定
+4. 起動コマンド: `node src/index.js`（または Dockerfile を使用）
+
+### オフラインになる主な原因
+
+| 原因 | 対処 |
+|---|---|
+| `npm start` した PC を閉じた / スリープ | Docker や VPS で常時稼働させる |
+| プロセスがクラッシュした | `docker compose` や PM2 の自動再起動を使う |
+| `DISCORD_TOKEN` が無効・再発行された | Developer Portal でトークンを再取得し `.env` を更新 |
+| MESSAGE CONTENT INTENT が OFF | Developer Portal で ON にして Bot を再起動 |
+
+起動ログに `ログイン完了: Bot名#1234` が出ていれば Discord 上ではオンラインです。切断時は `[shard 0] Discord から切断` のログが出ます（discord.js が自動再接続します）。
+
 ## 使い方の例
 
 ```text
