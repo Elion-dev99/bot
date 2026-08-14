@@ -62,11 +62,13 @@ npm start
 
 ### コマンドが反応しないとき
 
-- **`/` メニューのスラッシュコマンドを使う**（`一覧` テキスト入力は Message Content Intent が必要）
+**以前は動いていたのに急に反応しなくなった場合**、同じ `DISCORD_TOKEN` で Bot が **2台同時起動** している可能性が高いです（Cloud Agent・手元の PC と Railway が競合）。**Railway だけ**を起動してください。
+
+- Railway ダッシュボードで Deploy が **Running** か確認
+- 他の環境で `npm start` していないか確認
+- テキストの `一覧` も引き続き使えます（Developer Portal で **MESSAGE CONTENT INTENT** が ON なら）
+- 名簿が空になった場合: `npm run restore-roster`（Volume 設定後に1回実行）
 - `DISCORD_CLIENT_ID` が Railway Variables に入っているか確認
-- `DISCORD_GUILD_ID` を設定して Redeploy（スラッシュ反映）
-- Developer Portal で **MESSAGE CONTENT INTENT** を ON（テキストコマンドを使う場合）
-- **同じトークンで Bot を2台起動していないか**確認（Cloud Agent 等を止める）
 - `ALLOWED_CHANNEL_IDS` を設定している場合、チャンネル ID が一致しているか確認
 
 手動でスラッシュ登録:

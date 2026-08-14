@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "invite": "node scripts/invite-url.js",
     "register-commands": "node scripts/register-commands.js",
+    "restore-roster": "node scripts/restore-roster.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {
