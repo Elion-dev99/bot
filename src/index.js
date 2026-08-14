@@ -13,8 +13,9 @@ import {
   buildSlashCommands,
   parseSlashInteraction,
 } from "./slash-commands.js";
+import { startHealthServer } from "./health.js";
 
-const token = process.env.DISCORD_TOKEN;
+const token = process.env.DISCORD_TOKEN?.trim();
 if (!token || token === "your_bot_token_here") {
   console.error(
     "DISCORD_TOKEN が未設定です。Railway の Variables に DISCORD_TOKEN を設定してください。"
@@ -24,12 +25,13 @@ if (!token || token === "your_bot_token_here") {
 
 const clientId = process.env.DISCORD_CLIENT_ID;
 const guildId = process.env.DISCORD_GUILD_ID;
-const dataDir = process.env.DATA_DIR || "data";
 
 console.log("[boot] NODE_ENV=", process.env.NODE_ENV || "development");
-console.log("[boot] DATA_DIR=", dataDir);
 console.log("[boot] DISCORD_CLIENT_ID=", clientId ? "set" : "missing");
 console.log("[boot] DISCORD_GUILD_ID=", guildId || "(global slash registration)");
+console.log("[boot] PORT=", process.env.PORT || "(default 8080 for health)");
+
+startHealthServer();
 
 const allowedChannels = (process.env.ALLOWED_CHANNEL_IDS || "")
   .split(",")
@@ -80,16 +82,17 @@ function isChannelAllowed(channelId) {
 }
 
 client.once(Events.ClientReady, async (c) => {
-  console.log(`ログイン完了: ${c.user.tag}`);
-  if (allowedChannels.length > 0) {
-    console.log(`許可チャンネル: ${allowedChannels.join(", ")}`);
-  } else {
-    console.log("許可チャンネル制限なし（全テキストチャンネルで反応）");
+  try {
+    console.log(`ログイン完了: ${c.user.tag}`);
+    if (allowedChannels.length > 0) {
+      console.log(`許可チャンネル: ${allowedChannels.join(", ")}`);
+    } else {
+      console.log("許可チャンネル制限なし（全テキストチャンネルで反応）");
+    }
+    await registerSlashCommands();
+  } catch (err) {
+    console.error("[warn] 起動後処理エラー（Bot本体は稼働中）:", err);
   }
-  await registerSlashCommands();
-  console.log(
-    "コマンドは Discord の / メニュー（一覧・総額・入金・削除 等）から使えます"
-  );
 });
 
 process.on("unhandledRejection", (err) => {
@@ -246,4 +249,10 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-client.login(token);
+client.login(token).catch((err) => {
+  console.error("[fatal] Discord ログイン失敗:", err.message);
+  console.error(
+    "DISCORD_TOKEN が無効か期限切れです。Developer Portal で Reset Token 後、Railway Variables を更新してください。"
+  );
+  process.exit(1);
+});

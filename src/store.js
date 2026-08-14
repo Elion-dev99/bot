@@ -1,14 +1,30 @@
 import fs from "node:fs";
 import path from "node:path";
 
-// Railway Volume 等: 環境変数 DATA_DIR で保存先を指定（例: /data）
-const DATA_DIR = path.resolve(process.env.DATA_DIR || "data");
+function initDataDir() {
+  const preferred = process.env.DATA_DIR || "data";
+  const candidates = [path.resolve(preferred), path.resolve("data")];
 
-function ensureDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.accessSync(dir, fs.constants.W_OK);
+      if (dir !== path.resolve(preferred)) {
+        console.warn(
+          `[warn] DATA_DIR=${preferred} は使えないため ${dir} を使用します`
+        );
+      }
+      return dir;
+    } catch (err) {
+      console.warn(`[warn] data dir unavailable: ${dir} (${err.message})`);
+    }
   }
+
+  throw new Error("書き込み可能な data ディレクトリを確保できません");
 }
+
+const DATA_DIR = initDataDir();
+console.log("[boot] using DATA_DIR=", DATA_DIR);
 
 function filePath(channelId) {
   return path.join(DATA_DIR, `${channelId}.json`);
@@ -23,7 +39,6 @@ function defaultState() {
 }
 
 export function loadChannel(channelId) {
-  ensureDir();
   const file = filePath(channelId);
   if (!fs.existsSync(file)) {
     return defaultState();
@@ -41,7 +56,6 @@ export function loadChannel(channelId) {
 }
 
 export function saveChannel(channelId, state) {
-  ensureDir();
   fs.writeFileSync(filePath(channelId), JSON.stringify(state, null, 2), "utf8");
 }
 
