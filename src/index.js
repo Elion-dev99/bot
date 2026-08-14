@@ -4,9 +4,15 @@ import {
   GatewayIntentBits,
   Partials,
   Events,
+  REST,
+  Routes,
 } from "discord.js";
 import { extractCommands, parseCommand } from "./parser.js";
 import { handleCommand } from "./commands.js";
+import {
+  buildSlashCommands,
+  parseSlashInteraction,
+} from "./slash-commands.js";
 
 const token = process.env.DISCORD_TOKEN;
 if (!token || token === "your_bot_token_here") {
@@ -15,6 +21,9 @@ if (!token || token === "your_bot_token_here") {
   );
   process.exit(1);
 }
+
+const clientId = process.env.DISCORD_CLIENT_ID;
+const guildId = process.env.DISCORD_GUILD_ID;
 
 const allowedChannels = (process.env.ALLOWED_CHANNEL_IDS || "")
   .split(",")
@@ -30,12 +39,112 @@ const client = new Client({
   partials: [Partials.Channel],
 });
 
-client.once(Events.ClientReady, (c) => {
+async function registerSlashCommands() {
+  if (!clientId) {
+    console.warn(
+      "[warn] DISCORD_CLIENT_ID が未設定のため、スラッシュコマンドを自動登録しません。`npm run register-commands` を実行してください。"
+    );
+    return;
+  }
+  const commands = buildSlashCommands();
+  const rest = new REST({ version: "10" }).setToken(token);
+  try {
+    if (guildId) {
+      await rest.put(Routes.applicationGuildCommands(clientId, guildId), {
+        body: commands,
+      });
+      console.log(
+        `スラッシュコマンドをギルド ${guildId} に登録しました (${commands.length}件)`
+      );
+    } else {
+      await rest.put(Routes.applicationCommands(clientId), {
+        body: commands,
+      });
+      console.log(
+        `スラッシュコマンドをグローバル登録しました (${commands.length}件)。反映まで時間がかかることがあります。`
+      );
+    }
+  } catch (err) {
+    console.error("スラッシュコマンド登録エラー:", err);
+  }
+}
+
+function isChannelAllowed(channelId) {
+  return allowedChannels.length === 0 || allowedChannels.includes(channelId);
+}
+
+client.once(Events.ClientReady, async (c) => {
   console.log(`ログイン完了: ${c.user.tag}`);
   if (allowedChannels.length > 0) {
     console.log(`許可チャンネル: ${allowedChannels.join(", ")}`);
   } else {
     console.log("許可チャンネル制限なし（全テキストチャンネルで反応）");
+  }
+  await registerSlashCommands();
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+    if (!interaction.isChatInputCommand()) return;
+    if (!interaction.guild) {
+      await interaction.reply({
+        content: "⚠️ このコマンドはサーバー内でのみ使えます。",
+        ephemeral: true,
+      });
+      return;
+    }
+    if (!isChannelAllowed(interaction.channelId)) {
+      await interaction.reply({
+        content: "⚠️ このチャンネルでは集金Botを使えません。",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const parsed = parseSlashInteraction(interaction);
+    const result = handleCommand(interaction.channelId, parsed);
+    if (!result) {
+      await interaction.reply({
+        content: "⚠️ 処理結果がありません。",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    if (result.length <= 1900) {
+      await interaction.reply({
+        content: result,
+        allowedMentions: { parse: [] },
+      });
+    } else {
+      await interaction.reply({
+        content: result.slice(0, 1900),
+        allowedMentions: { parse: [] },
+      });
+      const rest = result.slice(1900);
+      if (rest) {
+        await interaction.followUp({
+          content: rest.slice(0, 1900),
+          allowedMentions: { parse: [] },
+        });
+      }
+    }
+  } catch (err) {
+    console.error("インタラクション処理エラー:", err);
+    const payload = {
+      content:
+        "⚠️ 処理中にエラーが発生しました。しばらくしてから再度お試しください。",
+      ephemeral: true,
+    };
+    try {
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(payload);
+      } else {
+        await interaction.reply(payload);
+      }
+    } catch {
+      // ignore
+    }
   }
 });
 
@@ -43,7 +152,7 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     if (message.author.bot) return;
     if (!message.guild) return;
-    if (allowedChannels.length > 0 && !allowedChannels.includes(message.channelId)) {
+    if (!isChannelAllowed(message.channelId)) {
       return;
     }
 
