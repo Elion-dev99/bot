@@ -4,6 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { extractCommands, parseCommand, parseAmount } from "../src/parser.js";
 import { handleCommand } from "../src/commands.js";
+import {
+  buildSlashCommands,
+  parseSlashInteraction,
+} from "../src/slash-commands.js";
 
 const TEST_CHANNEL = "test-channel-unit";
 const DATA_FILE = path.resolve("data", `${TEST_CHANNEL}.json`);
@@ -44,6 +48,39 @@ describe("parser", () => {
     assert.equal(parseAmount("1000"), 1000);
     assert.equal(parseAmount("1,000円"), 1000);
     assert.equal(parseAmount("abc"), null);
+  });
+});
+
+describe("slash-commands", () => {
+  it("/削除 の定義を返す", () => {
+    const cmds = buildSlashCommands();
+    assert.equal(cmds.length, 1);
+    assert.equal(cmds[0].name, "削除");
+    const optionNames = cmds[0].options.map((o) => o.name);
+    assert.deepEqual(optionNames, ["入力者", "削除対象の名前", "理由"]);
+    assert.ok(cmds[0].options.every((o) => o.required === true));
+  });
+
+  it("Interaction から削除引数を取り出す", () => {
+    const interaction = {
+      commandName: "削除",
+      options: {
+        getString(name, required) {
+          const map = {
+            入力者: "管理者",
+            削除対象の名前: "太郎",
+            理由: "退会のため",
+          };
+          const value = map[name];
+          if (required && value == null) throw new Error(`missing ${name}`);
+          return value;
+        },
+      },
+    };
+    assert.deepEqual(parseSlashInteraction(interaction), {
+      action: "削除",
+      args: ["管理者", "太郎", "退会のため"],
+    });
   });
 });
 
@@ -103,6 +140,27 @@ describe("commands", () => {
     assert.match(result, /削除完了/);
     assert.match(result, /入力者: 花子/);
     assert.match(result, /理由: 長期欠席のため/);
+  });
+
+  it("スラッシュInteraction経由でも削除できる", () => {
+    reset();
+    handleCommand(TEST_CHANNEL, { action: "登録", args: ["三郎", "2000"] });
+    const parsed = parseSlashInteraction({
+      commandName: "削除",
+      options: {
+        getString(name) {
+          return {
+            入力者: "管理者",
+            削除対象の名前: "三郎",
+            理由: "重複登録",
+          }[name];
+        },
+      },
+    });
+    const result = handleCommand(TEST_CHANNEL, parsed);
+    assert.match(result, /削除完了/);
+    assert.match(result, /三郎/);
+    assert.match(result, /理由: 重複登録/);
   });
 
   it("出金と取消ができる", () => {

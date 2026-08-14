@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "invite": "node scripts/invite-url.js",
+    "register-commands": "node scripts/register-commands.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {
