@@ -52,13 +52,26 @@ npm start
 
 | 変数名 | 必須 | 値 |
 |---|---|---|
-| `DISCORD_TOKEN` | ✅ | Bot トークン |
+| `DISCORD_TOKEN` | ✅ | Bot トークン（Reset したら必ず更新） |
 | `DISCORD_CLIENT_ID` | ✅ | `1533753341639786607` |
 | `DISCORD_GUILD_ID` | 推奨 | サーバー ID（スラッシュ即時反映） |
-| `DATA_DIR` | 推奨 | Volume マウント先（例: `/data`） |
+| `DATA_DIR` | 任意 | **Volume を付けたときだけ** `/data` |
 
 3. **Volume** を追加し、マウントパス `/data` に設定（名簿を再デプロイ後も保持）
-4. Deploy が成功したら Discord で `/` → **一覧** などを試す
+4. Deploy が成功したら Discord で `一覧` を試す
+
+ビルドは **Nixpacks**（`npm start`）を使用します。Dockerfile は使いません。
+
+### 再デプロイでクラッシュするとき
+
+Railway の **Deploy Logs** を確認:
+
+| ログ | 対処 |
+|---|---|
+| `DISCORD_TOKEN が未設定` | Variables にトークンを追加 |
+| `Discord ログイン失敗` / `TokenInvalid` | Developer Portal で Reset Token → Railway Variables を更新 |
+| `DATA_DIR=/data は使えない` | Volume を `/data` にマウントするか、`DATA_DIR` 変数を削除 |
+| Healthcheck 失敗 | Settings → Healthcheck Path を **空** にする |
 
 ### コマンドが反応しないとき
 
