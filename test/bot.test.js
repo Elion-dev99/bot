@@ -52,13 +52,14 @@ describe("parser", () => {
 });
 
 describe("slash-commands", () => {
-  it("/削除 の定義を返す", () => {
+  it("主要スラッシュコマンドの定義を返す", () => {
     const cmds = buildSlashCommands();
-    assert.equal(cmds.length, 1);
-    assert.equal(cmds[0].name, "削除");
-    const optionNames = cmds[0].options.map((o) => o.name);
-    assert.deepEqual(optionNames, ["入力者", "削除対象の名前", "理由"]);
-    assert.ok(cmds[0].options.every((o) => o.required === true));
+    const names = cmds.map((c) => c.name);
+    assert.ok(names.includes("一覧"));
+    assert.ok(names.includes("総額"));
+    assert.ok(names.includes("入金"));
+    assert.ok(names.includes("削除"));
+    assert.equal(cmds.length, 9);
   });
 
   it("Interaction から削除引数を取り出す", () => {
@@ -80,6 +81,21 @@ describe("slash-commands", () => {
     assert.deepEqual(parseSlashInteraction(interaction), {
       action: "削除",
       args: ["管理者", "太郎", "退会のため"],
+    });
+  });
+
+  it("Interaction から入金引数を取り出す", () => {
+    const interaction = {
+      commandName: "入金",
+      options: {
+        getString(name) {
+          return { 名前: "太郎", 金額: "3000" }[name];
+        },
+      },
+    };
+    assert.deepEqual(parseSlashInteraction(interaction), {
+      action: "入金",
+      args: ["太郎", "3000"],
     });
   });
 });

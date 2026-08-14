@@ -17,13 +17,19 @@ import {
 const token = process.env.DISCORD_TOKEN;
 if (!token || token === "your_bot_token_here") {
   console.error(
-    "DISCORD_TOKEN が未設定です。.env に Bot トークンを設定してください。"
+    "DISCORD_TOKEN が未設定です。Railway の Variables に DISCORD_TOKEN を設定してください。"
   );
   process.exit(1);
 }
 
 const clientId = process.env.DISCORD_CLIENT_ID;
 const guildId = process.env.DISCORD_GUILD_ID;
+const dataDir = process.env.DATA_DIR || "data";
+
+console.log("[boot] NODE_ENV=", process.env.NODE_ENV || "development");
+console.log("[boot] DATA_DIR=", dataDir);
+console.log("[boot] DISCORD_CLIENT_ID=", clientId ? "set" : "missing");
+console.log("[boot] DISCORD_GUILD_ID=", guildId || "(global slash registration)");
 
 const allowedChannels = (process.env.ALLOWED_CHANNEL_IDS || "")
   .split(",")
@@ -81,7 +87,20 @@ client.once(Events.ClientReady, async (c) => {
     console.log("許可チャンネル制限なし（全テキストチャンネルで反応）");
   }
   await registerSlashCommands();
+  console.log(
+    "コマンドは Discord の / メニュー（一覧・総額・入金・削除 等）から使えます"
+  );
 });
+
+process.on("unhandledRejection", (err) => {
+  console.error("[fatal] unhandledRejection:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[fatal] uncaughtException:", err);
+});
+
+client.on("error", (err) => console.error("[discord] error:", err));
+client.on("warn", (msg) => console.warn("[discord] warn:", msg));
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
