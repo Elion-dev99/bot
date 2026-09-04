@@ -14,11 +14,12 @@ import {
   parseSlashInteraction,
 } from "./slash-commands.js";
 import { startHealthServer } from "./health.js";
+import { maybeRestoreRosterOnBoot } from "./restore-on-boot.js";
 
 const token = process.env.DISCORD_TOKEN?.trim();
 if (!token || token === "your_bot_token_here") {
   console.error(
-    "DISCORD_TOKEN が未設定です。Railway の Variables に DISCORD_TOKEN を設定してください。"
+    "DISCORD_TOKEN が未設定です。bot-hosting.net の Environment Variables（または .env）に DISCORD_TOKEN を設定してください。"
   );
   process.exit(1);
 }
@@ -29,8 +30,8 @@ const guildId = process.env.DISCORD_GUILD_ID;
 console.log("[boot] NODE_ENV=", process.env.NODE_ENV || "development");
 console.log("[boot] DISCORD_CLIENT_ID=", clientId ? "set" : "missing");
 console.log("[boot] DISCORD_GUILD_ID=", guildId || "(global slash registration)");
-console.log("[boot] PORT=", process.env.PORT || "(default 8080 for health)");
 
+maybeRestoreRosterOnBoot();
 startHealthServer();
 
 const allowedChannels = (process.env.ALLOWED_CHANNEL_IDS || "")
