@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# bot-hosting.net にアップロードする ZIP を作る
+# Discloud / Quaxly 等にアップロードする ZIP を作る（node_modules なし）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-OUT="${1:-/tmp/collection-discord-bot-bot-hosting.zip}"
+OUT="${1:-/tmp/collection-discord-bot-hosting.zip}"
 rm -f "$OUT"
 
 zip -r "$OUT" \
@@ -11,9 +11,9 @@ zip -r "$OUT" \
   package-lock.json \
   README.md \
   .env.example \
+  discloud.config \
   src \
   scripts \
-  -x "scripts/start-bot.sh" \
   -x "**/.DS_Store"
 
 echo "Created: $OUT"

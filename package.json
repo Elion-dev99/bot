@@ -10,7 +10,7 @@
     "invite": "node scripts/invite-url.js",
     "register-commands": "node scripts/register-commands.js",
     "restore-roster": "node scripts/restore-roster.js",
-    "pack:bot-hosting": "bash scripts/pack-bot-hosting.sh",
+    "pack:hosting": "bash scripts/pack-hosting.sh",
     "test": "node --test test/*.test.js"
   },
   "engines": {
