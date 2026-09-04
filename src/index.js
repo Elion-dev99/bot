@@ -84,6 +84,11 @@ function isChannelAllowed(channelId) {
 client.once(Events.ClientReady, async (c) => {
   try {
     console.log(`ログイン完了: ${c.user.tag}`);
+    // Discord 上で常にオンライン表示にする
+    c.user.setPresence({
+      status: "online",
+      activities: [{ name: "集金記録 /ヘルプ", type: 3 }],
+    });
     if (allowedChannels.length > 0) {
       console.log(`許可チャンネル: ${allowedChannels.join(", ")}`);
     } else {
@@ -104,10 +109,42 @@ process.on("uncaughtException", (err) => {
 
 client.on("error", (err) => console.error("[discord] error:", err));
 client.on("warn", (msg) => console.warn("[discord] warn:", msg));
+client.on(Events.ShardDisconnect, (event, id) => {
+  console.warn(`[discord] shard ${id} disconnect code=${event?.code}`);
+});
+client.on(Events.ShardReconnecting, (id) => {
+  console.log(`[discord] shard ${id} reconnecting...`);
+});
+client.on(Events.ShardResume, (id) => {
+  console.log(`[discord] shard ${id} resumed`);
+});
+
+/**
+ * Discord はインタラクション受信後 3 秒以内に ack が必要。
+ * 遅延や一時的な負荷で「アプリケーションが応答しません」になるのを防ぐため、
+ * 先に deferReply してから処理結果を editReply する。
+ */
+async function replyInteraction(interaction, content, { ephemeral = false } = {}) {
+  const payload = {
+    content,
+    allowedMentions: { parse: [] },
+    ...(ephemeral ? { ephemeral: true } : {}),
+  };
+  if (interaction.deferred || interaction.replied) {
+    await interaction.editReply(payload);
+  } else {
+    await interaction.reply(payload);
+  }
+}
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  console.log(
+    `[slash] /${interaction.commandName} guild=${interaction.guildId} channel=${interaction.channelId} user=${interaction.user?.tag}`
+  );
+
   try {
-    if (!interaction.isChatInputCommand()) return;
     if (!interaction.guild) {
       await interaction.reply({
         content: "⚠️ このコマンドはサーバー内でのみ使えます。",
@@ -123,27 +160,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    // 3秒タイムアウト回避: すぐに「Bot は考え中…」を返す
+    await interaction.deferReply();
+
     const parsed = parseSlashInteraction(interaction);
     const result = handleCommand(interaction.channelId, parsed);
-    if (!result) {
-      await interaction.reply({
-        content: "⚠️ 処理結果がありません。",
-        ephemeral: true,
-      });
-      return;
-    }
+    const body = result || "⚠️ 処理結果がありません。";
 
-    if (result.length <= 1900) {
-      await interaction.reply({
-        content: result,
-        allowedMentions: { parse: [] },
-      });
+    if (body.length <= 1900) {
+      await replyInteraction(interaction, body);
     } else {
-      await interaction.reply({
-        content: result.slice(0, 1900),
-        allowedMentions: { parse: [] },
-      });
-      const rest = result.slice(1900);
+      await replyInteraction(interaction, body.slice(0, 1900));
+      const rest = body.slice(1900);
       if (rest) {
         await interaction.followUp({
           content: rest.slice(0, 1900),
@@ -159,8 +187,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       ephemeral: true,
     };
     try {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(payload);
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(payload);
       } else {
         await interaction.reply(payload);
       }
