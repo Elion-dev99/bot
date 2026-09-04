@@ -73,16 +73,20 @@ Railway の **Deploy Logs** を確認:
 | `DATA_DIR=/data は使えない` | Volume を `/data` にマウントするか、`DATA_DIR` 変数を削除 |
 | Healthcheck 失敗 | Settings → Healthcheck Path を **空** にする |
 
-### コマンドが反応しないとき
+### 「アプリケーションが応答しません」と出るとき
 
-**以前は動いていたのに急に反応しなくなった場合**、同じ `DISCORD_TOKEN` で Bot が **2台同時起動** している可能性が高いです（Cloud Agent・手元の PC と Railway が競合）。**Railway だけ**を起動してください。
+Discord の `/` コマンドでこの表示が出るのは、**Bot がオフライン**か、**3秒以内に返信できていない**ときです。
 
-- Railway ダッシュボードで Deploy が **Running** か確認
-- 他の環境で `npm start` していないか確認
-- テキストの `一覧` も引き続き使えます（Developer Portal で **MESSAGE CONTENT INTENT** が ON なら）
-- 名簿が空になった場合: `npm run restore-roster`（Volume 設定後に1回実行）
-- `DISCORD_CLIENT_ID` が Railway Variables に入っているか確認
-- `ALLOWED_CHANNEL_IDS` を設定している場合、チャンネル ID が一致しているか確認
+1. Railway の Deploy が **Active / Running** か確認（Stopped / Crashed なら Redeploy）
+2. Deploy Logs に `ログイン完了:` が出ているか確認
+3. **同じトークンで二重起動していないか**確認（手元の `npm start` と Railway の同時起動は NG）
+4. Settings → **Serverless を OFF**、Healthcheck Path は **空**
+5. Variables に `DISCORD_TOKEN` / `DISCORD_CLIENT_ID` /（推奨）`DISCORD_GUILD_ID` があるか確認
+6. Redeploy 後、ログに `[slash] /一覧 ...` が出るか確認（出ていればコマンドは届いている）
+
+テキストの `一覧` も使えます（Developer Portal で **MESSAGE CONTENT INTENT** が ON なら）。
+名簿が空になった場合: `npm run restore-roster`（Volume 設定後に1回実行）。
+`ALLOWED_CHANNEL_IDS` を設定している場合、チャンネル ID が一致しているか確認してください。
 
 手動でスラッシュ登録:
 
