@@ -2,10 +2,10 @@
   "name": "collection-discord-bot",
   "version": "1.0.0",
   "description": "括弧コマンドで動く集金記録用 Discord Bot",
-  "main": "src/index.js",
+  "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "node index.js",
     "dev": "node --watch src/index.js",
     "invite": "node scripts/invite-url.js",
     "register-commands": "node scripts/register-commands.js",

@@ -12,6 +12,7 @@ zip -r "$OUT" \
   README.md \
   .env.example \
   discloud.config \
+  index.js \
   src \
   scripts \
   -x "**/.DS_Store"
